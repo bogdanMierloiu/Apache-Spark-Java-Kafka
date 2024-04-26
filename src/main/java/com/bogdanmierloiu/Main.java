@@ -8,9 +8,9 @@ import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import scala.Tuple2;
 import scala.Tuple22;
+import scala.Tuple3;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 public class Main {
@@ -80,13 +80,47 @@ public class Main {
 
 //
 //            System.out.println("---------- CSV files ----------");
-//            sc.textFile("src/main/resources/api-logs/downloaded-logs-20240425-130627.json");
-            JavaRDD<String> stringJavaRDD = sc.textFile("src/main/resources/subtitles/input.txt");
+            JavaRDD<String> stringJavaRDD = sc.textFile("src/main/resources/api-logs/interview-api-25.04.2024.csv");
+            analyzeAppLogs(stringJavaRDD);
 
-            stringJavaRDD
-                    .flatMap(value -> Arrays.asList(value.split(" ")).iterator())
-                    .foreach(System.out::println);
         }
+    }
 
+
+    private static void analyzeAppLogs(JavaRDD<String> stringJavaRDD) {
+        String header = stringJavaRDD.first();
+        JavaRDD<String> filteredData = stringJavaRDD.filter(row -> !row.equals(header) && !row.trim().isEmpty());
+        JavaRDD<Tuple3<String, String, String>> tuple3JavaRDD = filteredData.map(rawValue -> {
+            String[] columns = rawValue.split(",");
+            String latency = columns[0];
+            String requestMethod = columns[4];
+            String rawRequestUrl = columns[6];
+            int startIndex = rawRequestUrl.indexOf("/", "https://".length());
+            String requestUrl;
+            if (startIndex != -1) {
+                requestUrl = rawRequestUrl.substring(startIndex);
+            } else {
+                requestUrl = rawRequestUrl;
+            }
+            return new Tuple3<>(latency, requestMethod, requestUrl);
+        });
+
+        JavaRDD<Tuple3<String, String, String>> tuple3Filtered = tuple3JavaRDD
+                .filter(tuple -> !tuple._1().isEmpty() && !tuple._2().isEmpty() && !tuple._3().isEmpty());
+        JavaPairRDD<String, Tuple2<Integer, Double>> endpointStats = tuple3Filtered.mapToPair(tuple -> {
+            String endpoint = tuple._3();
+            double duration = Double.parseDouble(tuple._1().replace("s", ""));
+            return new Tuple2<>(endpoint, new Tuple2<>(1, duration));
+        });
+
+        JavaPairRDD<String, Tuple2<Integer, Double>> endpointStatsReduced = endpointStats.reduceByKey((x, y) -> new Tuple2<>(x._1() + y._1(), x._2() + y._2()));
+        JavaPairRDD<String, Tuple2<Integer, Double>> sortedByNumCalls = endpointStatsReduced.sortByKey();
+        sortedByNumCalls.collect().forEach(System.out::println);
+
+        JavaPairRDD<Double, String> sortedByTotalDuration = endpointStatsReduced
+                .mapToPair(tuple -> new Tuple2<>(tuple._2()._2(), tuple._1()))
+                .sortByKey(false);
+
+//        sortedByTotalDuration.collect().forEach(System.out::println);
     }
 }
