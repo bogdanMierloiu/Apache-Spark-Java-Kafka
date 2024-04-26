@@ -40,3 +40,4 @@ generated/
 src/main/resources/exams
 src/main/resources/subtitles
 src/main/resources/viewing-figures
+src/main/resources/api-logs

@@ -87,7 +87,7 @@ public class Main {
     }
 
 
-    private static void analyzeAppLogs(JavaRDD<String> stringJavaRDD) {
+    private static void analyzeAppLogsRaw(JavaRDD<String> stringJavaRDD) {
         String header = stringJavaRDD.first();
         JavaRDD<String> filteredData = stringJavaRDD.filter(row -> !row.equals(header) && !row.trim().isEmpty());
         JavaRDD<Tuple3<String, String, String>> tuple3JavaRDD = filteredData.map(rawValue -> {
@@ -115,12 +115,51 @@ public class Main {
 
         JavaPairRDD<String, Tuple2<Integer, Double>> endpointStatsReduced = endpointStats.reduceByKey((x, y) -> new Tuple2<>(x._1() + y._1(), x._2() + y._2()));
         JavaPairRDD<String, Tuple2<Integer, Double>> sortedByNumCalls = endpointStatsReduced.sortByKey();
-        sortedByNumCalls.collect().forEach(System.out::println);
+//        sortedByNumCalls.collect().forEach(System.out::println);
 
         JavaPairRDD<Double, String> sortedByTotalDuration = endpointStatsReduced
                 .mapToPair(tuple -> new Tuple2<>(tuple._2()._2(), tuple._1()))
                 .sortByKey(false);
 
-//        sortedByTotalDuration.collect().forEach(System.out::println);
+        sortedByTotalDuration.collect().forEach(System.out::println);
     }
+
+    private static void analyzeAppLogs(JavaRDD<String> stringJavaRDD) {
+        String header = stringJavaRDD.first();
+        JavaRDD<String> filteredData = stringJavaRDD.filter(row -> !row.equals(header) && !row.trim().isEmpty());
+        JavaRDD<Tuple3<String, String, String>> tuple3JavaRDD = filteredData.map(rawValue -> {
+            String[] columns = rawValue.split(",");
+            String latency = columns[0];
+            String requestMethod = columns[4];
+            String rawRequestUrl = columns[6];
+            int startIndex = rawRequestUrl.indexOf("/", "https://".length());
+            String requestUrl;
+            if (startIndex != -1) {
+                requestUrl = rawRequestUrl.substring(startIndex);
+            } else {
+                requestUrl = rawRequestUrl;
+            }
+            return new Tuple3<>(latency, requestMethod, requestUrl);
+        });
+
+        JavaRDD<Tuple3<String, String, String>> tuple3Filtered = tuple3JavaRDD
+                .filter(tuple -> !tuple._1().isEmpty() && !tuple._2().isEmpty() && !tuple._3().isEmpty());
+        JavaPairRDD<String, Tuple2<Integer, Double>> endpointStats = tuple3Filtered.mapToPair(tuple -> {
+            String endpoint = tuple._3();
+            double duration = Double.parseDouble(tuple._1().replace("s", ""));
+            return new Tuple2<>(endpoint, new Tuple2<>(1, duration));
+        });
+
+        JavaPairRDD<String, Tuple2<Integer, Double>> endpointStatsReduced = endpointStats.reduceByKey((x, y) -> new Tuple2<>(x._1() + y._1(), x._2() + y._2()));
+
+        // Calculăm durata medie a fiecărui apel pentru fiecare endpoint
+        JavaPairRDD<String, Double> averageDurationPerEndpoint = endpointStatsReduced.mapValues(tuple -> tuple._2() / tuple._1());
+
+        // Sortăm endpoint-urile în funcție de durata medie
+        JavaPairRDD<Double, String> sortedByAverageDuration = averageDurationPerEndpoint.mapToPair(Tuple2::swap).sortByKey(false);
+
+        // Colectăm și afișăm rezultatele
+        sortedByAverageDuration.collect().forEach(System.out::println);
+    }
+
 }

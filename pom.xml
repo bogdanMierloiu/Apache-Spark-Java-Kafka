@@ -25,11 +25,11 @@
 			<artifactId>spark-sql_2.10</artifactId>
 			<version>2.2.3</version>
 		</dependency>
-		<dependency>
-			<groupId>org.apache.hadoop</groupId>
-			<artifactId>hadoop-hdfs</artifactId>
-			<version>3.3.6</version>
-		</dependency>
+<!--		<dependency>-->
+<!--			<groupId>org.apache.hadoop</groupId>-->
+<!--			<artifactId>hadoop-hdfs</artifactId>-->
+<!--			<version>3.3.6</version>-->
+<!--		</dependency>-->
 	</dependencies>
 
 	<build>
@@ -87,7 +87,7 @@
 <!--				<configuration>-->
 <!--					<archive>-->
 <!--						<manifest>-->
-<!--							<mainClass>com.bogdanmierloiu.Main</mainClass>-->
+<!--							<mainClass>com.bogdanmierloiu.service.SparkService</mainClass>-->
 <!--						</manifest>-->
 <!--					</archive>-->
 <!--				</configuration>-->
